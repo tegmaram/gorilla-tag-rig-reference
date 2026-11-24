@@ -1,0 +1,560 @@
+================================================================================
+GORILLA TAG - RIG & GROESSEN-REFERENZ
+================================================================================
+
+Stand        : 24.11.2026
+Build        : Unity 6000.2.9f1 (Steam, Windows)
+Installation : C:\Program Files (x86)\Steam\steamapps\common\Gorilla Tag
+Assets       : Gorilla Tag_Data\sharedassets0.assets / level0 / resources.assets
+Code         : re\decompiled\Assembly-CSharp.cs (liegt im Install-Ordner)
+Messung      : UnityPy 1.25.4 (Mesh-AABB, Transforms, Collider, SkinnedMeshRenderer)
+Rip (Sekundaer): GorillaTag_IK_Rig.blend - nur fuer Vertex-Gruppen/Cross-Sections
+
+Ersetzt: GTAG_Rig_Reference.html
+Aenderungen gegenueber der HTML stehen in Abschnitt 12.
+
+
+================================================================================
+0. ERGEBNIS IN 6 ZEILEN
+================================================================================
+
+1) Die Spieler-Mesh ist 1.2687 m hoch, 0.6847 m breit, 0.3769 m tief
+   (gemessen im ausgelieferten Build, nicht im Rip).
+2) Alle Spieler sind gleich gross. scaleFactor = scaleMultiplier * nativeScale
+   = 1.0, und VRRig.ScaleUpdate() setzt localScale jeden Frame auf 1.0 zurueck.
+3) "Groesse" kommt ausschliesslich aus dem Headset: das Rig wird an die Kamera
+   gehaengt (syncPos = mainCamera.position + ...). Es gibt keinen Zahlenwert
+   fuer Spielerhoehe im Code (0 grep-Treffer).
+4) Kopf-Collider: SphereCollider r = 0.14 m. Koerper-Collider: CapsuleCollider
+   height = 0.50 m, radius = 0.0924 m. (Ware in der HTML noch "unbekannt".)
+5) Groesse aendern duerfen nur Map-Objekte (NativeSizeChangerButton/Volume),
+   hart geclampt auf 0.1x - 10x und serverseitig geprueft.
+6) Reichweite ist gedeckelt: maxArmLength = 1.0 m ab Kopf, skaliert mit scale.
+
+
+================================================================================
+1. QUELLEN & METHODE
+================================================================================
+
+Quelle                          Was sie liefert                         Rang
+------------------------------  --------------------------------------  ----------
+Install: sharedassets0.assets   Spieler-Prefab, Mesh, Bones, Skalen     primaer
+Install: level0                 GorillaPlayer-Prefab inkl. Collider     primaer
+Install: re\decompiled\*.cs     Verhalten (scale, RPC, Limits)          primaer
+Another-Axiom/GorillaLocomotion Offizielles Movement-Repo (MIT)          offiziell
+NachoEngine/Gorilla_IK_Rig      Fan-Rip, 929 Verts - nur Geometrie-     sekundaer
+                                Detailtabellen (Gruppen/Sections)
+
+Warum der Rip nur sekundaer ist:
+- Rip-Mesh: 929 Verts / 1473 Tris, Groesse 1.2683 x 0.6847 x 0.3769
+- Spiel-Mesh: 3131 Verts / 1440 Tris, Groesse 1.2687 x 0.6847 x 0.3769
+=> Gesamtmasse stimmen auf 0.4 mm, Vertex-Daten sind aber andere (LOD/Variante).
+- Der Rip ist ausserdem um 0.209 m in der Hoehe verschoben gegenueber den
+  Spiel-Bones (Rip: Mesh-Unterkante z = -0.6153, Spiel: y = -0.8240).
+  Relative Proportionen stimmen, absolute Bone-Z-Werte aus dem Rip NICHT 1:1
+  auf das Spiel uebertragen.
+
+Reproduktion: siehe Abschnitt 11.
+
+
+================================================================================
+2. MESH-VERMESSUNG (AUS DEM BUILD)
+================================================================================
+
+Prefab-Kette:
+  Gorilla Player Networked (GO pid 18391, sharedassets0.assets)
+    |- Rigidbody
+    |- VRRigReliableState
+    |- SphereCollider  r=0.53  center=(0,-0.21,-0.06)  isTrigger=true   <- Tag-Sphere
+    |- gorilla_new
+    |    |- SkinnedMeshRenderer (pid 40485) -> Mesh "gorilla" (pid 4140)
+    |    |- ForceRecalculateBounds
+    |- gorilla_skl   -> Mesh "MonkeSkeleton"   (2.147 Verts, 2.704 Tris)
+    |- gorilla_nhd   -> Mesh "gorilla_Headless"
+    |- Gorilla Skin And Particles (Partikel-Parent)
+    |- rig           (Bone-Rig, 32 Bones)
+
+Spieler-Mesh (pid 4140):
+  Vertices          3131
+  Tris              1440  (3 SubMeshes)
+  Bones             32
+  AABB Center       (0.0000, -0.1896, -0.0258)
+  AABB Groesse      0.6847 x 1.2687 x 0.3769  (X/Y/Z, Meter)
+  AABB min/max Y    -0.8240 ... +0.4444
+  Transform-Scale   alle 1.0 (Prefab-Root und ganze Kette)
+
+Weitere Meshes namens "gorilla" in derselben Datei (nicht der Spieler):
+  pid 4137  1427 Verts, 1440 Tris, 1.2687 m  -> Referenz-/Mannequin-Variante
+  pid 4138  2983 Verts, 1450 Tris, 1.2687 m  -> Z-aufrecht (hingelegt/gedreht)
+  pid 4139  3452 Verts, 1882 Tris, 1.5418 m  -> laengere Variante
+  ACHTUNG: In resources.assets liegt noch eine "gorilla"-Mesh mit 0.0634 m
+  (= 1/20). Das ist NICHT der Spieler, sondern eine Skalierungs-Variante
+  (Shop/Display). Nicht verwechseln.
+
+Vergleich Rip <-> Build (Beweis, dass die HTML-Zahlen stimmen):
+  Rip    : 1.2683 hoch, 0.6847 breit, 0.3769 tief
+  Build  : 1.2687 hoch, 0.6847 breit, 0.3769 tief
+  Delta  : 0.0004 m (0.4 mm)
+
+
+================================================================================
+3. RIG / BONE-HIERARCHIE (Build, Rotation korrekt verrechnet)
+================================================================================
+
+Koordinaten: Rig-lokal, Meter. Der Rig-Root sitzt spaeter auf Kopfhoehe minus
+Head-Offset (siehe 7.4), nicht auf dem Boden.
+
+Bone              lokal (x, y, z)              Welt (x, y, z)         Laenge
+----------------  ---------------------------  ---------------------  ------
+rig               (0, 0, 0)                    (0.000, 0.000, 0.000)  -
+  body            (0, +0.011, +1.658) *        (0.000, -0.222, -0.006) -
+    head          (0, +0.011, +1.658) *        (0.000, +0.175, -0.011) 0.397 **
+    shoulder.L    (-0.018, -0.042, +0.086) *   (-0.018, +0.122, +0.068) 0.145
+      upper_arm.L (0, +0.146, -0.026)          (-0.130, +0.141, -0.027) 0.406
+        forearm.L (0, +0.406, 0)               (-0.444, +0.014, +0.198) 0.382
+    shoulder.R    (+0.018, -0.042, +0.086) *   (+0.018, +0.122, +0.068) 0.145
+      upper_arm.R (0, +0.146, -0.026)          (+0.130, +0.141, -0.027) 0.406
+        forearm.R (0, +0.406, 0)               (+0.448, +0.029, -0.254) 0.382
+
+  * Der Rig-Knoten ist gegenueber seiner Eltern-Node rotiert (Z-up-Import).
+    Deshalb sind die "lokal"-Werte hier Rohwerte; die Weltspalte ist die
+    verlaessliche. Differenzen sind trotzdem eindeutig:
+      head - body            = +0.397 m in Y
+      shoulder - body        = (+-0.018, +0.344, +0.074)
+      shoulder -> upper_arm  = 0.145 m (Clavicle)
+      upper_arm              = 0.406 m
+      forearm                = 0.382 m
+      hand                   = 0.077 m
+  ** 0.397 m ist der Abstand Body-Root -> Head-Bone. NICHT identisch mit dem
+     serialisierten VRRig.headBodyOffset (siehe Abschnitt 9, offener Punkt).
+
+Armkette fuer Movement:
+  shoulder -> hand (Luftlinie)   0.777 m
+  upper_arm + forearm            0.788 m
+  Hand-Bone                      0.077 m
+
+Wichtig fuer Reach: Die Bone-Kette ist fix. Was sich mit deiner realen Groesse
+aendert, ist nur, WO das Rig haengt (Kamera), nicht wie gross es ist.
+
+
+================================================================================
+4. VERTEX-GRUPPEN (Rip, normiert - Geometrie-Detail)
+================================================================================
+
+Hinweis: Werte aus dem Rip, auf 0 = tiefster Mesh-Punkt und 1 = Oberkante Kopf
+normiert. Wegen der 0.209-m-Verschiebung im Rip sind die absoluten Z-Werte
+nicht build-treu; die normierten Bereiche sind es.
+
+Group          Verts   Z-Bereich (m)         Hoehe    Z normiert
+-------------  ------  --------------------  -------  -------------
+head             149   +0.324 ... +0.653     0.329    0.741 ... 1.000
+torso             70   -0.056 ... +0.372     0.428    0.441 ... 0.778
+upper_arm.L/R     62   -0.058 ... +0.395     0.453    0.439 ... 0.796
+forearm.L/R       64   -0.440 ... -0.049     0.390    0.138 ... 0.447
+hand.L/R         100   -0.511 ... -0.383     0.128    0.082 ... 0.183
+Finger (6 pro Hand)    -0.584 ... -0.444     ~0.14    0.025 ... 0.135
+
+Auf Build-Koordinaten umgerechnet (Mesh-Unterkante = 0, Rig-Root = 0.824):
+  Kopf-Mesh      +0.115 ... +0.444   (Hoehe 0.329)
+  Torso-Mesh     -0.265 ... +0.163   (Hoehe 0.428)
+  Finger-Tips    -0.824
+
+
+================================================================================
+5. CROSS-SECTIONS (Rip, nur Kernkoerper |x| < 0.12)
+================================================================================
+
+Schrittweite 0.05 m. Breite/Tiefe in Meter.
+
+Z (m)    Z norm.   Breite   Tiefe Y
+-------  --------  -------  --------------------
+-0.050   0.446     0.199    -0.076 ... +0.136
++0.000   0.485     0.214    -0.111 ... +0.188
++0.050   0.525     0.211    +0.211 ... +0.211
++0.150   0.603     0.231    -0.125 ... +0.211
++0.200   0.643     0.230    -0.035 ... +0.039
++0.250   0.682     0.225    -0.111 ... +0.185
++0.300   0.722     0.204    -0.106 ... +0.085
++0.350   0.761     0.178    -0.158 ... +0.127
++0.400   0.801     0.197    -0.166 ... +0.074
++0.450   0.840     0.228    -0.150 ... -0.092
++0.500   0.879     0.230    -0.137 ... +0.104
++0.550   0.919     0.239    -0.144 ... +0.104
++0.600   0.958     0.198    -0.122 ... +0.025
++0.650   0.998     0.101    -0.027 ... +0.080
+
+Kernkoerper-Durchmesser: max ~0.239 m, Kopf-Breite ~0.274 m (Bounding-Box).
+
+
+================================================================================
+6. NORMIERTE SKALA (ENGINE-READY)
+================================================================================
+
+Der Absolutwert ist jetzt belegt, also ist keine "unbekannte Skalierung" mehr
+noetig. Trotzdem: baue mit einem Faktor S, dann bleibt alles proportional.
+
+  const float MESH_HEIGHT   = 1.268665f;   // Build-Messung (1.2687)
+  const float SHOULDER_WIDE = 0.684709f;
+  const float ARM_REACH     = 0.787900f;
+  const float TORSO_MESH_H  = 0.428000f;
+  const float HEAD_MESH_H   = 0.329000f;
+  const float EYE_IN_RIG    = 0.280000f;   // fpv_camera_bone (Rip: 0.870 * H)
+
+  // Beispiel: Monke 1.10 m hoch
+  float S = 1.10f / MESH_HEIGHT;           // 0.867
+
+Ankerpunkte (relativ zur Mesh-Unterkante, normiert):
+
+  Anker                        z_norm   bei 1.2687 m
+  ---------------------------  ------   -------------
+  Fingerspitzen (tiefster Pkt) 0.000    0.000 m
+  Handgelenk                   0.170    0.216 m
+  Torso-Mesh Unterkante        0.441    0.559 m
+  Torso-Bone Ende              0.722    0.916 m
+  Schultern                    0.772    0.979 m
+  Head-Bone                    0.798    1.012 m
+  fpv_camera_bone              0.870    1.104 m
+  Kopf-Oberkante               1.000    1.269 m
+
+  => Kopfhoehe (Kamera) = 0.870 * Mesh-Hoehe. Das ist der Wert, den der
+     Simulator als "Kamera sitzt im Rig" benutzt (28 cm ueber Rig-Null,
+     wenn Rig-Null = Mesh-Unterkante + 0.824).
+
+
+================================================================================
+7. SPIEL-LOGIK (DECOMPILED CODE)
+================================================================================
+
+7.1 GROESSE - FUER ALLE GLEICH
+--------------------------------------------------------------------------------
+  // Assembly-CSharp/GorillaLocomotion/GTPlayer.cs
+  private float nativeScale = 1f;
+  private float scaleMultiplier = 1f;
+  public float scale => scaleMultiplier * nativeScale;
+  public bool IsDefaultScale => Mathf.Abs(1f - scale) < 0.001f;
+
+  // VRRig.cs
+  public float scaleFactor => scaleMultiplier * nativeScale;
+
+  private void ScaleUpdate () {
+      frameScale = Mathf.MoveTowards (lastScaleFactor, scaleFactor, Time.deltaTime * 4f);
+      transform.localScale = UnityEngine.Vector3.one * frameScale;   // !! immer 1.0
+      lastScaleFactor = frameScale;
+  }
+
+  Default: nativeScale = 1, scaleMultiplier = 1  ->  scale = 1.0 fuer jeden.
+  Die Mesh-Groesse ist damit fuer alle Spieler identisch.
+
+7.2 WER DIE GROESSE SETZEN DARF
+--------------------------------------------------------------------------------
+  // NativeSizeChangerSettings.cs
+  public const float MinAllowedSize = 0.1f;
+  public const float MaxAllowedSize = 10f;
+  [Range (0.1f, 10f)] public float playerSizeScale = 1f;
+  public bool ExpireOnRoomJoin = true;
+  public bool ExpireInWater = true;
+
+  // GTPlayer.cs
+  public void SetNativeScale (NativeSizeChangerSettings s) {
+      nativeScale = (s != null && s.playerSizeScale > 0f && s.playerSizeScale != 1f)
+                    ? s.playerSizeScale : 1f;
+  }
+
+  Ausloeser sind ausschliesslich Map-Objekte:
+    NativeSizeChangerButton  (GorillaPressableButton -> Activate)
+    NativeSizeVolume         (Trigger Enter/Exit)
+  Der Spieler kann seine Groesse NICHT in den Einstellungen aendern.
+
+7.3 NETZWERK + ANTI-CHEAT
+--------------------------------------------------------------------------------
+  // VRRigSerializer.cs
+  private void UpdateNativeSizeShared (float value, PhotonMessageInfoWrapped info) {
+      if (info.Sender == netView.Owner && RPCUtil.SafeValue (value, 0.1f, 10f)
+          && RPCUtil.NotSpam (...))
+          vrrig.NativeScale = value;
+      else
+          MonkeAgent.instance.SendReport ("inappropriate tag data being sent native size", ...);
+  }
+
+  Heisst: 0.1 - 10 ist erlaubt, alles andere wird reported. Ein "Big/Small
+  Monke"-Mod, der ausserhalb dieses Bereichs oder ohne Owner-Recht sendet,
+  fliegt auf.
+
+7.4 HOEHE KOMMT AUS DEM HEADSET, NICHT AUS EINEM WERT
+--------------------------------------------------------------------------------
+  // VRRig.cs (lokaler Spieler)
+  syncPos = mainCamera.transform.position
+          + headConstraint.rotation * head.trackingPositionOffset * lastScaleFactor
+          + transform.rotation * headBodyOffset * lastScaleFactor;
+  transform.SetPositionAndRotation (syncPos, GTPlayerTransform.BodyRotation);
+  head.MapMine (lastScaleFactor, playerOffsetTransform);
+
+  // VRRig.cs (fremder Spieler)
+  head.syncPos = base.transform.rotation * -headBodyOffset * scaleFactor;
+
+  // GTPlayer.cs
+  return headCollider.transform.position
+       + headCollider.transform.rotation * offsetVector * scale;
+
+  Konsequenz:
+  - Deine reale Augenhoehe verschiebt das komplette Rig nach oben/unten.
+  - Die Mesh-Groesse bleibt 1.2687 m.
+  - Ein 2.00-m-Spieler hat denselben Monke wie ein 1.40-m-Kind, nur sitzt
+    sein Rig ~60 cm hoeher. Das erklaert "der schwebt da oben" und warum
+    grosse Spieler hoeher greifen - nicht, weil sie groesser sind.
+
+7.5 COLLIDER (ECHTE PREFAB-WERTE)
+--------------------------------------------------------------------------------
+  Prefab: level0 -> "GorillaPlayer" -> TurnParent -> "Main Camera"
+
+  Objekt              Komponente        Werte
+  ------------------  ----------------  ------------------------------------
+  Main Camera         SphereCollider    r = 0.1400, Center (0,0,0), Trigger=0
+    (headCollider)
+  Body Collider       CapsuleCollider   height = 0.5000, r = 0.09243,
+                                        Center (0,0,0), Trigger=0
+  HeadTrigger         SphereCollider    r = 0.1500, Trigger=1
+  GorillaHandClimber  SphereCollider    r = 0.1000, Trigger=1   (pro Hand)
+  Left/RightHand      BoxCollider       size 0.020^3, Trigger=1
+    Controller        SphereCollider    r = 0.0100, Trigger=1
+
+  Ableitung im Code:
+    bodyOffsetVector = (0, -bodyCollider.height / 2, 0)
+    _bodyInitialHeight = bodyCollider.height        // = 0.50
+    bodyInitialRadius  = bodyCollider.radius        // = 0.09243
+
+  Die HTML hatte hier 0.915 / 0.12 geraten - falsch. Es sind 0.50 / 0.0924.
+  Der Kopf-Radius 0.14 war richtig geraten.
+
+  Nicht im Prefab lesbar: GorillaPlaySpace.bodyColliderOffset (Runtime-Wert).
+  Der Collider haengt laut Code an headsetTransform.position + bodyColliderOffset.
+
+7.6 ARM-LIMIT / REACH
+--------------------------------------------------------------------------------
+  // GTPlayer.cs
+  public float maxArmLength = 1f;
+
+  // Anwendung (Stilt/Hand-Follow)
+  if ((vector - position).IsShorterThan (maxArmLength * gtPlayer.scale))
+      return vector;
+  return position + (vector - position).normalized * maxArmLength * gtPlayer.scale;
+
+  Das offizielle GorillaLocomotion-Repo hat maxArmLength = 1.5f, der Live-Code
+  1.0f. Der Deckel skaliert mit scale (also mit dem Size-Changer).
+
+7.7 ARMSPANN-KALIBRIERUNG (RecalibrateSize)
+--------------------------------------------------------------------------------
+  private void RecalibrateSize (bool pressed) {
+      lastCalibratedLength = calibratedLength;
+      calibratedLength = (rightController.position - leftController.position).magnitude;
+      calibratedLength = Clamp (calibratedLength, minLength, maxLength);
+      float ratio = calibratedLength / lastCalibratedLength;
+
+      playerBody.transform.localScale = Vector3.one;      // Rig reset
+      ... RigBuilder.Clear / TransformReset / Build ...
+      playerBody.transform.localScale = ratio * localScale;
+      GorillaPlaySpace.Instance.bodyColliderOffset *= ratio;
+      GorillaPlaySpace.Instance.bodyCollider.transform.localScale *= ratio;
+  }
+
+  Das ist die Armspann-Kalibrierung (u. a. Builder/Grow-Watch). Sie skaliert
+  Rig UND Collider - im Gegensatz zur normalen Hoehe, die nur die Position
+  verschiebt. Der Faktor kommt aus dem Abstand der Controller, nicht aus
+  einem Zahlenfeld.
+
+7.8 NEGATIVBEWEIS (0 Treffer im Decompile)
+--------------------------------------------------------------------------------
+  grep -rn "playerHeight|UserHeight|eyeHeight|standingHeight" --include=*.cs .  -> 0
+  grep -rn "AdjustHeight|heightAdjust"                        --include=*.cs .  -> 0
+  grep -rn "long arm|longArm|arm extension|extender" -i       --include=*.cs .  -> 0
+
+  Es gibt keine Spielerhoehen-Variable, keinen Height-Slider und kein
+  eingebautes Long-Arm-Feature.
+
+
+================================================================================
+8. Q&A
+================================================================================
+
+Q: Wie gross ist der Monke?
+A: Mesh 1.2687 m hoch, 0.6847 m breit, 0.3769 m tief (Build-Messung).
+   Sichtbar ist er "kleiner", weil Beine fehlen und der Koerper aus Torso,
+   Kopf und Armen besteht.
+
+Q: Ist jeder gleich gross?
+A: Ja. scale = 1.0 fuer alle; VRRig setzt localScale jeden Frame auf 1.0.
+   Ausnahme: Map-Objekte mit NativeSizeChanger (0.1x - 10x) oder die
+   Armspann-Kalibrierung (RecalibrateSize).
+
+Q: Wie wird die Hoehe gesetzt?
+A: Ueberhaupt nicht als Wert. Das Rig wird an die Kamera gehaengt
+   (syncPos = mainCamera.position + Offset). Deine reale Augenhoehe bestimmt
+   nur die Position des Rigs im Raum.
+
+Q: Merkt man als Grosser einen Vorteil?
+A: Ja, indirekt: das Rig sitzt hoeher, also sind Schultern/Haende hoeher und
+   die Arme weiter gestreckt. Gedeckelt durch maxArmLength (1.0 m ab Kopf).
+
+Q: Wo sitzt die Kamera im Rig?
+A: fpv_camera_bone bei 0.870 der Mesh-Hoehe = 1.104 m ueber der Mesh-Unterkante
+   (28 cm ueber Rig-Null, Rig-Null = Unterkante + 0.824). Der Head-Bone sitzt
+   tiefer (17.5 cm ueber Rig-Null). Welcher der beiden exakt an das Headset
+   gebunden wird, ist offen (Abschnitt 9).
+
+Q: Warum sehen kleine Kinder "normal" aus?
+A: Weil die Mesh-Groesse fix ist. Ein 1.30-m-Kind hat denselben 1.27-m-Monke,
+   nur sitzt sein Rig tiefer - dadurch steht der Monke fast auf dem Boden,
+   waehrend er bei 1.90 m deutlich schwebt.
+
+Q: Was ist die "Torso Height"?
+A: Torso-Mesh 0.428 m hoch, Torso-Bone 0.300 m (Base -> Schulter), Schultern
+   bei 0.344 m ueber Body-Root (bzw. 0.772 normiert).
+
+Q: Sind die Collider gleich fuer alle?
+A: Ja, die Prefab-Werte sind fix (0.14 / 0.50 / 0.0924). Sie werden nur mit
+   scale multipliziert, wenn der Size-Changer aktiv ist.
+
+Q: Wie viele Bones?
+A: 32 (Head, Torso, 2x Clavicle, 2x UpperArm, 2x Forearm, 2x Hand,
+   6 Finger pro Hand inkl. Thumb-Ketten).
+
+
+================================================================================
+9. OFFENE PUNKTE (ehrlich)
+================================================================================
+
+1) VRRig.headBodyOffset (serialisiertes Vector3) konnte nicht gelesen werden -
+   die MonoBehaviour liegt nicht in sharedassets0/level0 bzw. ist ohne
+   Typetree nicht parsebar. Sicher ist nur: Sync erfolgt ueber diesen Offset.
+   Kandidaten: 0.175 m (Head-Bone) oder 0.28 m (fpv_camera_bone aus dem Rip).
+   Der Simulator nutzt 0.28 m als Default und laesst sich verstellen.
+
+2) GorillaPlaySpace.bodyColliderOffset (Runtime) ist nicht im Prefab lesbar.
+   Der Code sagt nur: bodyCollider.position = headsetTransform.position + offset.
+
+3) Vertex-Daten der Build-Mesh (pid 4140) sind mit UnityPy 1.25.4 nicht
+   dekodierbar (m_Vertices = None, Unity 6 Streams). Vertex-Gruppen und
+   Cross-Sections stammen daher aus dem Rip; Gesamtmasse sind build-verifiziert.
+
+4) Der Rip ist um 0.209 m vertikal gegenueber den Build-Bones versetzt
+   (Mesh-Unterkante -0.6153 vs -0.8240). Absolute Rip-Z-Werte nicht uebernehmen.
+
+5) Ob die "gorilla"-Mesh mit 1.5418 m (pid 4139) irgendwo benutzt wird, ist
+   unklar (evtl. ungenutzte Variante/Test-Asset).
+
+
+================================================================================
+10. FAN-GAME CHECKLISTE (STARTWERTE, ALLE BELEGT)
+================================================================================
+
+  Parameter                Startwert        Quelle
+  -----------------------  ---------------  --------------------------------
+  meshHeight               1.268665 m       Build-Mesh pid 4140
+  shoulderWidth            0.684709 m       Build-Mesh
+  meshDepth                0.376900 m       Build-Mesh
+  armReach (Bone-Kette)    0.787900 m       upper_arm 0.406 + forearm 0.382
+  torsoMeshHeight          0.428000 m       Rip-Gruppe torso
+  headMeshHeight           0.329000 m       Rip-Gruppe head
+  eyeHeightInRig           0.280000 m       fpv_camera_bone (0.870 * H)
+  headBoneInRig            0.175000 m       Build-Rig (head-body 0.397)
+  headCollider radius      0.140000 m       level0 GorillaPlayer
+  headCollider center      (0, 0, 0)        auf Kamerahoehe setzen
+  bodyCollider height      0.500000 m       level0 GorillaPlayer
+  bodyCollider radius      0.092430 m       level0 GorillaPlayer
+  maxArmLength             1.000000 m       GTPlayer.cs
+  handRaycast radius       0.010000 m       Controller-Sphere
+  hangClimber radius       0.100000 m       GorillaHandClimber
+  Size-Changer Bereich     0.1x - 10x       NativeSizeChangerSettings
+
+  Reihenfolge:
+  1. Mesh mit MESH_HEIGHT normalisieren, Kamera auf 0.870 * meshHeight.
+  2. Zwei Collider: Kopf-Sphere (0.14) auf Kamera, Koerper-Capsule (0.50/0.0924)
+     unter der Kamera.
+  3. Hand-Raycast + maxArmLength = 1.0.
+  4. Rig an die Kamera haengen (nicht an den Boden!) - das ist der Kern des
+     Gorilla-Tag-Feelings.
+  5. Groesse nur ueber scaleMultiplier, hart auf 0.1 - 10 clampen.
+
+
+================================================================================
+11. REPRODUKTION / SKRIPTE
+================================================================================
+
+Alle Skripte liegen in .\tools\ (Python 3.12 + UnityPy 1.25.4).
+
+  python tools\player_mesh.py     "<...>\Gorilla Tag_Data\sharedassets0.assets"
+      -> findet die Spieler-Mesh, Groesse, Verts/Tris, Bones
+
+  python tools\dump_tree.py       "<...>\sharedassets0.assets" "Gorilla Player Networked" 6
+      -> Prefab-Hierarchie + Collider
+
+  python tools\dump_tree.py       "<...>\level0" "GorillaPlayer" 3
+      -> headCollider/bodyCollider-Werte
+
+  python tools\world_bones2.py    "<...>\sharedassets0.assets" "rig"
+      -> Bone-Weltpositionen (Rotation korrekt verrechnet)
+
+  python tools\colliders.py       "<...>\sharedassets0.assets"
+      -> alle Collider mit Elternkette
+
+  python tools\mesh_stats.py      "<...>\sharedassets0.assets"
+      -> alle "gorilla"-Varianten mit Verts/Tris/AABB
+
+  Decompile pruefen:
+  Select-String -Path "...\re\decompiled\Assembly-CSharp.cs" -Pattern "maxArmLength"
+
+
+================================================================================
+12. CHANGELOG GEGENUEBER GTAG_Rig_Reference.html
+================================================================================
+
+[KORREKTUR] "Absoluter Meter-Massstab unbewiesen" -> jetzt belegt:
+             Build-Mesh 1.2687 m (vorher Rip 1.2683 m).
+[KORREKTUR] bodyCollider.height 0.915 -> 0.50 ; radius 0.12 -> 0.0924.
+[KORREKTUR] headCollider/Camera-Position: Sphere r 0.14 bestaetigt (Prefab).
+[KORREKTUR] Bone-Werte: Head-Bone liegt 0.397 m ueber Body-Root, nicht
+             0.397 m ueber Rig-Null (Rig-Null = Mesh-Unterkante + 0.824).
+[NEU]       Prefab-Pfade + path ids (sharedassets0 / level0).
+[NEU]       NativeSizeChangerButton/-Volume als einzige Groessen-Quelle.
+[NEU]       RecalibrateSize (Armspanne) inkl. Collider-Skalierung.
+[NEU]       VRRig.ScaleUpdate (MoveTowards 4/s) und Sync-Formel.
+[NEU]       4 verschiedene "gorilla"-Meshes + die 0.0634-m-Falle.
+[NEU]       Simulator: GTAG_Height_Sim.html.
+
+================================================================================
+13. SIMULATOR (GTAG_Height_Sim.html)
+================================================================================
+
+Eine einzelne, offline-faehige HTML-Datei (kein Server, keine Libraries).
+
+Bedienung:
+  - Slider / Zahlenfeld: reale Koerpergroesse 130 - 210 cm
+  - Presets: Kind 140 / Teen 165 / Adult 178 / Gross 192
+  - "Monke am Headset ausrichten"  : Normalzustand (Rig folgt der Kamera)
+  - "Monke am Headset" AUS         : Monke steht auf dem Boden
+                                     (reiner Groessenvergleich)
+  - "Collider zeigen"              : Kopf-Sphere r 0.14 + Body-Capsule 0.50/0.0924
+  - "Beschriftungen" / "Raster"    : Labels und 20-cm-Raster
+  - Details "Kamera-Offset im Rig" : 0.175 ... 0.310 m (Annahme, siehe 9.1)
+
+Angezeigte Werte:
+  links  = reale Person (blau, mit Beinen)
+  rechts = Monke (lila, ohne Beine, Mesh fix 1.2687 m)
+  rechts daneben: Tabelle Real | In-Game | Delta fuer
+    Kopf-Oberkante, Augen/Headset, Schultern, Torso-Hoehe, Kopf-Hoehe, Unterkante
+  Karten: Schwebehoehe, Rig-Ursprung, Kopf-Oberkante, Unterkante, Max-Reach
+
+Formeln im Simulator (identisch zu diesem Dokument):
+  eye    = 0.935 * H                    // reale Augenhoehe
+  root   = eye - camOffset              // Rig-Null (Kamera haengt dran)
+  bottom = root - 0.824                 // Mesh-Unterkante
+  top    = root + 0.4444                // Mesh-Oberkante
+  reach  = eye + 1.0                    // maxArmLength
+
+Warum 0.935? Menschliche Proportion (Augenhoehe ~93.5 % der Koerpergroesse).
+Der Simulator nutzt sie nur fuer die reale Figur; das Spiel selbst kennt
+keine Proportion, es nimmt einfach deine Headset-Hoehe.
+
+================================================================================
+ENDE
+================================================================================

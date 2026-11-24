@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gorilla Tag — Height Simulator</title>
+<style>
+  :root{
+    --bg:#0b0f14;
+    --panel:#121821;
+    --panel2:#0e141c;
+    --line:#22303f;
+    --text:#e6edf3;
+    --muted:#8b98a5;
+    --monke:#a78bfa;
+    --human:#4fa3ff;
+    --accent:#3ee0b0;
+    --warn:#f2b544;
+    --dim:#2a3644;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:radial-gradient(1200px 600px at 70% -10%, #16202b 0%, var(--bg) 60%);
+    color:var(--text);
+    font:14px/1.5 ui-sans-serif,system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding:22px;
+  }
+  header{display:flex;flex-wrap:wrap;gap:14px;align-items:baseline;margin-bottom:16px}
+  h1{font-size:19px;margin:0;letter-spacing:.2px}
+  h1 span{color:var(--muted);font-weight:400}
+  .badges{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+  .badge{
+    font:11px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    border:1px solid var(--line);background:var(--panel2);color:var(--muted);
+    padding:6px 8px;border-radius:6px;white-space:nowrap
+  }
+  .badge b{color:var(--text);font-weight:600}
+  main{
+    display:grid;
+    grid-template-columns:270px minmax(420px,1fr) 300px;
+    gap:16px;align-items:start;
+  }
+  .panel{
+    background:linear-gradient(180deg,var(--panel) 0%,var(--panel2) 100%);
+    border:1px solid var(--line);border-radius:12px;padding:14px;
+  }
+  .panel h2{
+    font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--muted);margin:0 0 10px;font-weight:600
+  }
+  .big{
+    font:600 30px/1.1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    letter-spacing:-.5px;
+  }
+  .big small{font-size:13px;color:var(--muted);font-weight:500;letter-spacing:0}
+  .sub{color:var(--muted);font-size:12px;margin-top:4px}
+  .hr{height:1px;background:var(--line);margin:14px 0}
+  label.row{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin:8px 0}
+  input[type=range]{width:100%;accent-color:var(--accent);margin:6px 0 2px}
+  .hval{display:flex;gap:8px;align-items:center;margin-top:6px}
+  .hval input[type=number]{
+    width:92px;background:var(--panel2);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:8px 10px;font:600 15px ui-monospace,monospace;
+  }
+  .hval span{color:var(--muted);font-size:12px}
+  .presets{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+  button{
+    background:var(--panel2);color:var(--text);border:1px solid var(--line);
+    border-radius:8px;padding:7px 8px;font-size:12px;cursor:pointer
+  }
+  button:hover{border-color:#3a4c60;background:#16202b}
+  button.on{border-color:var(--accent);color:var(--accent)}
+  .checks{display:grid;gap:6px;margin-top:10px;font-size:12px}
+  .checks label{display:flex;gap:8px;align-items:center;cursor:pointer;color:var(--text)}
+  .checks input{accent-color:var(--accent)}
+  .stage{
+    background:
+      radial-gradient(600px 300px at 50% 100%, rgba(62,224,176,.06), transparent 70%),
+      linear-gradient(180deg,#0d141c,#0a0f15);
+    border:1px solid var(--line);border-radius:12px;overflow:hidden;position:relative;
+  }
+  .stage svg{display:block;width:100%;height:auto}
+  .stage .tag{
+    position:absolute;left:12px;top:10px;font:11px ui-monospace,monospace;color:var(--muted);
+    border:1px solid var(--line);padding:4px 7px;border-radius:6px;background:rgba(10,15,21,.7)
+  }
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{padding:5px 0;text-align:right;border-bottom:1px solid #1b2531;white-space:nowrap}
+  th:first-child,td:first-child{text-align:left;color:var(--muted)}
+  thead th{font-weight:600;color:var(--muted);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+  td.r{color:var(--human)}
+  td.m{color:var(--monke)}
+  td.d{color:var(--accent)}
+  .note{font-size:11px;color:var(--muted);line-height:1.45}
+  .note b{color:var(--text);font-weight:600}
+  .note .k{color:var(--accent)}
+  details{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+  summary{cursor:pointer;font-size:12px;color:var(--muted)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  @media (max-width:1080px){
+    main{grid-template-columns:1fr}
+    .stage{order:-1}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Gorilla&nbsp;Tag <span>— Height Simulator</span></h1>
+  <div class="badges">
+    <div class="badge">Mesh <b>1.2687 m</b></div>
+    <div class="badge">Scale <b>1.0 × alle</b></div>
+    <div class="badge">Kamera im Rig <b>0.280 m</b></div>
+    <div class="badge">headCollider <b>r 0.14</b></div>
+    <div class="badge">bodyCollider <b>0.50 / r 0.0924</b></div>
+  </div>
+</header>
+
+<main>
+  <!-- ── Controls ─────────────────────────────────────────────────────── -->
+  <section class="panel">
+    <h2>Deine reale Größe</h2>
+    <div class="hval">
+      <input id="heightNum" type="number" min="130" max="210" step="0.5" value="175">
+      <span>cm</span>
+    </div>
+    <input id="heightRange" type="range" min="130" max="210" step="0.5" value="175">
+
+    <div class="presets">
+      <button data-h="140">Kind · 140</button>
+      <button data-h="165">Teen · 165</button>
+      <button data-h="178">Adult · 178</button>
+      <button data-h="192">Groß · 192</button>
+    </div>
+
+    <div class="hr"></div>
+
+    <h2>Darstellung</h2>
+    <div class="checks">
+      <label><input id="attach" type="checkbox" checked> Monke am Headset ausrichten</label>
+      <label><input id="colliders" type="checkbox"> Collider zeigen</label>
+      <label><input id="labels" type="checkbox" checked> Beschriftungen</label>
+      <label><input id="grid" type="checkbox" checked> Raster (20 cm)</label>
+    </div>
+
+    <details>
+      <summary>Annahme: Kamera-Offset im Rig</summary>
+      <label class="row"><span>fpv_camera_bone</span><span id="camOut">0.280 m</span></label>
+      <input id="cam" type="range" min="0.175" max="0.310" step="0.005" value="0.280">
+      <p class="note" style="margin:8px 0 0">
+        0.280 m = 0.870 × Mesh-Höhe (Rip). 0.175 m = Head-Bone aus dem Build.
+        Welcher Punkt exakt am Headset hängt, ist im Prefab nicht lesbar
+        (<span class="mono">VRRig.headBodyOffset</span>) — deshalb einstellbar.
+      </p>
+    </details>
+
+    <div class="hr"></div>
+    <p class="note">
+      <b>Kernaussage:</b> Die Mesh ist für alle <span class="k">1.2687 m</span>.
+      Deine reale Größe verschiebt nur das ganze Rig nach oben — nie die
+      Mesh-Größe. <span class="mono">scale = 1.0</span> für jeden.
+    </p>
+  </section>
+
+  <!-- ── Scene ────────────────────────────────────────────────────────── -->
+  <section class="stage">
+    <div class="tag" id="tag">175 cm · Headset 163.6 cm</div>
+    <svg id="scene" viewBox="0 0 900 560" role="img" aria-label="Vergleich: reale Person und Gorilla-Tag-Monke"></svg>
+  </section>
+
+  <!-- ── Readout ──────────────────────────────────────────────────────── -->
+  <section class="panel">
+    <h2>Ergebnis</h2>
+    <div class="big" id="floatBig">+0.0 <small>cm</small></div>
+    <div class="sub" id="floatSub">Monke schwebt über dem Boden</div>
+
+    <div class="hr"></div>
+
+    <table>
+      <thead>
+        <tr><th></th><th>Real</th><th>In-Game</th><th>Δ</th></tr>
+      </thead>
+      <tbody id="cmp"></tbody>
+    </table>
+
+    <div class="hr"></div>
+    <table>
+      <tbody>
+        <tr><td>Monke-Mesh</td><td class="m">126.87 cm</td></tr>
+        <tr><td>Rig-Ursprung</td><td class="m" id="rootOut">—</td></tr>
+        <tr><td>Monke-Kopf-Oberkante</td><td class="m" id="topOut">—</td></tr>
+        <tr><td>Monke-Unterkante</td><td class="m" id="botOut">—</td></tr>
+        <tr><td>Max. Reach (1.0 m)</td><td class="m" id="reachOut">—</td></tr>
+      </tbody>
+    </table>
+
+    <div class="hr"></div>
+    <p class="note" id="verdict"></p>
+    <p class="note" style="margin-top:10px">
+      Quelle: <span class="mono">sharedassets0.assets</span> (Mesh pid 4140) ·
+      <span class="mono">level0</span> (Collider) · decompiled
+      <span class="mono">GTPlayer.cs</span> / <span class="mono">VRRig.cs</span>.
+      Details: <span class="mono">GTAG_Rig_Reference.txt</span>.
+    </p>
+  </section>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  // ── Konstanten aus dem Build (Meter → cm) ─────────────────────────────
+  const K = {
+    meshH: 126.87,
+    top: 44.44,          // Mesh max y (Rig-Null)
+    bottom: -82.40,      // Mesh min y
+    headBone: 17.50,
+    headBottom: 11.50,
+    headTop: 44.44,
+    headW: 27.40,
+    torsoBottom: -26.50,
+    torsoTop: 16.30,
+    torsoW: 23.90,
+    shoulderY: 12.20,
+    handY: -56.00,
+    handX: 27.00,
+    fingerY: -82.40,
+    colHeadR: 14.00,
+    bodyH: 50.00,
+    bodyR: 9.24,
+    maxArm: 100.00,
+  };
+
+  // Menschliche Proportionen (Anteil der Körpergröße)
+  const P = {
+    eye: 0.935, chin: 0.870, shoulder: 0.820, hip: 0.480,
+    knee: 0.280, headH: 0.130, headW: 0.090,
+    shoulderW: 0.220, hipW: 0.160, legW: 0.055,
+  };
+
+  const S = 2.10;            // px pro cm
+  const FLOOR = 496;         // y-Pixel des Bodens
+  const X_HUMAN = 205;
+  const X_MONKE = 505;
+
+  const el = {
+    range: document.getElementById('heightRange'),
+    num: document.getElementById('heightNum'),
+    cam: document.getElementById('cam'),
+    camOut: document.getElementById('camOut'),
+    attach: document.getElementById('attach'),
+    colliders: document.getElementById('colliders'),
+    labels: document.getElementById('labels'),
+    grid: document.getElementById('grid'),
+    scene: document.getElementById('scene'),
+    tag: document.getElementById('tag'),
+    floatBig: document.getElementById('floatBig'),
+    floatSub: document.getElementById('floatSub'),
+    cmp: document.getElementById('cmp'),
+    rootOut: document.getElementById('rootOut'),
+    topOut: document.getElementById('topOut'),
+    botOut: document.getElementById('botOut'),
+    reachOut: document.getElementById('reachOut'),
+    verdict: document.getElementById('verdict'),
+  };
+
+  const f = (n, d = 1) => n.toFixed(d).replace('.', ',');
+  const y = cm => FLOOR - cm * S;               // cm → SVG-y
+  const xr = cm => X_HUMAN + cm * S;            // cm → SVG-x (real)
+  const xm = cm => X_MONKE + cm * S;            // cm → SVG-x (monke)
+
+  function state() {
+    const h = Math.min(210, Math.max(130, parseFloat(el.num.value) || 175));
+    return {
+      h,
+      camOff: parseFloat(el.cam.value) * 100,   // m -> cm
+      attach: el.attach.checked,
+      colliders: el.colliders.checked,
+      labels: el.labels.checked,
+      grid: el.grid.checked,
+    };
+  }
+
+  // ── Geometrie berechnen ───────────────────────────────────────────────
+  function solve(st) {
+    const eye = st.h * P.eye;                              // Headset-Höhe (real)
+    const root = st.attach ? eye - st.camOff : -K.bottom;  // Rig-Null absolut
+    const camPoint = st.attach ? eye : root + st.camOff;   // Kamera im Rig
+    return {
+      eye,
+      camPoint,
+      root,
+      meshTop: root + K.top,
+      meshBottom: root + K.bottom,
+      reach: camPoint + K.maxArm,
+      float: root + K.bottom,
+    };
+  }
+
+  // ── SVG Bausteine ─────────────────────────────────────────────────────
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+  function humanFig(st) {
+    const h = st.h;
+    const top = h, eye = h * P.eye, chin = h * P.chin;
+    const sh = h * P.shoulder, hip = h * P.hip;
+    const headH = h * P.headH, headW = h * P.headW;
+    const shW = h * P.shoulderW / 2, hipW = h * P.hipW / 2;
+    const legW = h * P.legW;
+    const headCy = top - headH / 2;
+
+    const legL = X_HUMAN - hipW + 1.5;
+    const legR = X_HUMAN + hipW - 1.5 - legW;
+
+    const torso = [
+      `${X_HUMAN - shW},${y(sh)}`,
+      `${X_HUMAN + shW},${y(sh)}`,
+      `${X_HUMAN + hipW},${y(hip)}`,
+      `${X_HUMAN - hipW},${y(hip)}`,
+    ].join(' ');
+
+    return `
+      <!-- Beine -->
+      <rect x="${legL}" y="${y(hip)}" width="${legW}" height="${hip * S}" rx="${legW / 2}" fill="#1a4a7a"/>
+      <rect x="${legR}" y="${y(hip)}" width="${legW}" height="${hip * S}" rx="${legW / 2}" fill="#1a4a7a"/>
+      <!-- Torso -->
+      <polygon points="${torso}" fill="#2f7cc0"/>
+      <!-- Arme (aussen, vor dem Torso) -->
+      <path d="M ${X_HUMAN - shW + 3} ${y(sh + h * 0.01)}
+               L ${X_HUMAN - shW - 7} ${y(h * 0.63)}
+               L ${X_HUMAN - shW - 2} ${y(h * 0.545)}"
+            fill="none" stroke="#2a6aa8" stroke-width="${h * 0.032}"
+            stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M ${X_HUMAN + shW - 3} ${y(sh + h * 0.01)}
+               L ${X_HUMAN + shW + 7} ${y(h * 0.63)}
+               L ${X_HUMAN + shW + 2} ${y(h * 0.545)}"
+            fill="none" stroke="#2a6aa8" stroke-width="${h * 0.032}"
+            stroke-linejoin="round" stroke-linecap="round"/>
+      <!-- Hals -->
+      <rect x="${X_HUMAN - headW * 0.18}" y="${y(chin)}" width="${headW * 0.36}" height="${(chin - sh) * S + 6}" fill="#2f7cc0"/>
+      <!-- Kopf -->
+      <ellipse cx="${X_HUMAN}" cy="${y(headCy)}" rx="${headW / 2}" ry="${headH / 2}" fill="#4fa3ff"/>
+    `;
+  }
+
+  function monkeFig(st, sol) {
+    const R = sol.root;
+    const headTop = R + K.headTop, headBot = R + K.headBottom;
+    const torsoTop = R + K.torsoTop, torsoBot = R + K.torsoBottom;
+    const shY = R + K.shoulderY;
+    const hx = K.handX, hy = R + K.handY;
+
+    let s = `<g>`;
+    // Arme (hinter dem Torso)
+    for (const sign of [-1, 1]) {
+      s += `<path d="M ${xm(sign * 10)} ${y(shY - 1)}
+                 C ${xm(sign * 20)} ${y(shY - 18)},
+                   ${xm(sign * hx)} ${y(hy + 22)},
+                   ${xm(sign * hx)} ${y(hy)}"
+              fill="none" stroke="#8b6ff0" stroke-width="${7.2}" stroke-linecap="round"/>`;
+      s += `<circle cx="${xm(sign * hx)}" cy="${y(hy - 2)}" r="4.6" fill="#a78bfa"/>`;
+    }
+    // Torso
+    const tw = K.torsoW;
+    s += `<rect x="${xm(-tw / 2)}" y="${y(torsoTop)}" width="${tw * S}"
+             height="${(torsoTop - torsoBot) * S}" rx="10" fill="#7c5cf0"/>`;
+    // Kopf
+    s += `<rect x="${xm(-K.headW / 2)}" y="${y(headTop)}" width="${K.headW * S}"
+             height="${(headTop - headBot) * S}" rx="13" fill="#a78bfa"/>`;
+    // Ohren
+    s += `<circle cx="${xm(-K.headW / 2)}" cy="${y((headTop + headBot) / 2)}" r="5.5" fill="#8b6ff0"/>`;
+    s += `<circle cx="${xm(K.headW / 2)}" cy="${y((headTop + headBot) / 2)}" r="5.5" fill="#8b6ff0"/>`;
+    // Augen
+    s += `<circle cx="${xm(-5)}" cy="${y(headTop - 10)}" r="2.6" fill="#0b0f14"/>`;
+    s += `<circle cx="${xm(5)}" cy="${y(headTop - 10)}" r="2.6" fill="#0b0f14"/>`;
+    s += `</g>`;
+    return s;
+  }
+
+  function colliders(st, sol) {
+    const R = sol.root;
+    let s = `<g opacity=".95">`;
+    // Kopf-Sphere
+    s += `<circle cx="${xm(0)}" cy="${y(sol.camPoint)}" r="${K.colHeadR * S}"
+            fill="rgba(62,224,176,.10)" stroke="#3ee0b0" stroke-width="1.2" stroke-dasharray="4 3"/>`;
+    // Body-Capsule
+    const hw = K.bodyR * S, hh = K.bodyH * S;
+    const cy = y(R + K.torsoTop - (K.bodyH / 2) + 3);
+    s += `<rect x="${xm(0) - hw}" y="${cy - hh / 2 + hw}" width="${hw * 2}"
+             height="${hh - hw * 2}" fill="rgba(62,224,176,.10)" stroke="#3ee0b0"
+             stroke-width="1.2" stroke-dasharray="4 3"/>`;
+    s += `<circle cx="${xm(0)}" cy="${cy - hh / 2 + hw}" r="${hw}" fill="rgba(62,224,176,.10)" stroke="#3ee0b0" stroke-width="1.2" stroke-dasharray="4 3"/>`;
+    s += `<circle cx="${xm(0)}" cy="${cy + hh / 2 - hw}" r="${hw}" fill="rgba(62,224,176,.10)" stroke="#3ee0b0" stroke-width="1.2" stroke-dasharray="4 3"/>`;
+    s += `</g>`;
+    return s;
+  }
+
+  function dim(x0, y0, x1, y1, text, color = '#8b98a5', anchor = 'start', size = 11) {
+    let s = `<g stroke="${color}" fill="none" stroke-width="1">`;
+    s += `<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}"/>`;
+    if (Math.abs(y1 - y0) > 6) {
+      s += `<line x1="${x0 - 4}" y1="${y0}" x2="${x0 + 4}" y2="${y0}"/>`;
+      s += `<line x1="${x0 - 4}" y1="${y1}" x2="${x0 + 4}" y2="${y1}"/>`;
+    } else {
+      s += `<line x1="${x0}" y1="${y0 - 4}" x2="${x0}" y2="${y0 + 4}"/>`;
+      s += `<line x1="${x1}" y1="${y1 - 4}" x2="${x1}" y2="${y1 + 4}"/>`;
+    }
+    s += `</g>`;
+    s += `<text x="${x1 + (anchor === 'end' ? -6 : 6)}" y="${(y0 + y1) / 2 + 4}"
+             fill="${color}" font-size="${size}" text-anchor="${anchor}"
+             font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">${esc(text)}</text>`;
+    return s;
+  }
+
+  function guide(yPx, text, color = '#5b6b7c', dash = '3 5') {
+    return `<line x1="56" y1="${yPx}" x2="742" y2="${yPx}" stroke="${color}"
+              stroke-width="1" stroke-dasharray="${dash}"/>
+            <text x="748" y="${yPx + 3.5}" fill="${color}" font-size="10"
+              font-family="ui-monospace,monospace">${esc(text)}</text>`;
+  }
+
+  // ── Szene bauen ───────────────────────────────────────────────────────
+  function render() {
+    const st = state();
+    const sol = solve(st);
+    el.camOut.textContent = f(st.camOff / 100, 3) + ' m';
+
+    let s = '';
+
+    // Raster
+    if (st.grid) {
+      for (let cm = 0; cm <= 240; cm += 20) {
+        const yy = y(cm);
+        if (yy < 40) break;
+        s += `<line x1="56" y1="${yy}" x2="742" y2="${yy}" stroke="#141d27" stroke-width="1"/>`;
+        s += `<text x="50" y="${yy + 3.5}" fill="${cm % 100 === 0 ? '#526274' : '#33404e'}"
+                font-size="9.5" text-anchor="end"
+                font-family="ui-monospace,monospace">${cm}</text>`;
+      }
+    }
+
+    // Boden
+    s += `<line x1="40" y1="${FLOOR}" x2="780" y2="${FLOOR}" stroke="#2b3947" stroke-width="2"/>`;
+    s += `<text x="780" y="${FLOOR + 16}" fill="#526274" font-size="10" text-anchor="end">Boden · 0 cm</text>`;
+
+    // Figuren
+    s += humanFig(st);
+    s += monkeFig(st, sol);
+
+    if (st.colliders) s += colliders(st, sol);
+
+    // Headset-Linie
+    if (st.attach) {
+      s += `<line x1="${X_HUMAN}" y1="${y(st.h * P.eye)}" x2="${xm(0)}" y2="${y(sol.camPoint)}"
+              stroke="#3ee0b0" stroke-width="1.2" stroke-dasharray="2 4" opacity=".65"/>`;
+    }
+    s += `<circle cx="${X_HUMAN}" cy="${y(st.h * P.eye)}" r="3" fill="#3ee0b0"/>`;
+    s += `<circle cx="${xm(0)}" cy="${y(sol.camPoint)}" r="3" fill="#3ee0b0"/>`;
+
+    if (st.labels) {
+      s += guide(y(sol.camPoint),
+                 (st.attach ? 'Headset ' : 'Kamera ') + f(sol.camPoint), '#3ee0b0');
+      s += guide(y(sol.meshTop), 'Top ' + f(sol.meshTop), '#7b68b8');
+
+      // Höhen-Dimensionen real
+      s += dim(X_HUMAN - st.h * P.shoulderW / 2 - 26, y(st.h),
+               X_HUMAN - st.h * P.shoulderW / 2 - 26, y(0),
+               f(st.h) + ' cm', '#4fa3ff', 'end');
+      // Monke-Höhe
+      s += dim(xm(K.headW / 2) + 26, y(sol.meshTop),
+               xm(K.headW / 2) + 26, y(sol.meshBottom),
+               '126,87 cm (fix)', '#a78bfa', 'start');
+
+      // Schwebehöhe
+      s += dim(xm(-K.headW / 2) - 30, y(sol.meshBottom), xm(-K.headW / 2) - 30, y(0),
+               '+' + f(sol.float) + ' cm', '#3ee0b0', 'end');
+
+      // Kopf / Torso Labels
+      s += `<text x="${X_HUMAN + 78}" y="${y(st.h - st.h * P.headH / 2) + 4}" fill="#7db6f0" font-size="10">Kopf</text>`;
+      s += `<text x="${X_HUMAN + 78}" y="${y(st.h * 0.72) + 4}" fill="#7db6f0" font-size="10">Torso</text>`;
+      s += `<text x="${xm(0) + K.headW * S / 2 + 10}" y="${y(sol.root + (K.headTop + K.headBottom) / 2) + 4}" fill="#b9a4ff" font-size="10">Kopf</text>`;
+      s += `<text x="${xm(0) + K.torsoW * S / 2 + 10}" y="${y(sol.root + K.torsoTop) + 12}" fill="#b9a4ff" font-size="10">Torso</text>`;
+
+      // Rig-Null Marker
+      s += `<line x1="${xm(0) - 9}" y1="${y(sol.root)}" x2="${xm(0) + 9}" y2="${y(sol.root)}"
+              stroke="#5b6b7c" stroke-width="1"/>`;
+
+      // Figuren-Titel
+      s += `<text x="${X_HUMAN}" y="${FLOOR + 34}" fill="#4fa3ff" font-size="12" text-anchor="middle" font-weight="600">Du (real)</text>`;
+      s += `<text x="${xm(0)}" y="${FLOOR + 34}" fill="#a78bfa" font-size="12" text-anchor="middle" font-weight="600">Monke (In-Game)</text>`;
+      s += `<text x="${X_HUMAN}" y="${FLOOR + 50}" fill="#526274" font-size="10" text-anchor="middle">Beine, 1:1 Maß</text>`;
+      s += `<text x="${xm(0)}" y="${FLOOR + 50}" fill="#526274" font-size="10" text-anchor="middle">keine Beine, Mesh fix</text>`;
+    } else {
+      s += `<text x="${X_HUMAN}" y="${FLOOR + 34}" fill="#4fa3ff" font-size="12" text-anchor="middle">Du</text>`;
+      s += `<text x="${xm(0)}" y="${FLOOR + 34}" fill="#a78bfa" font-size="12" text-anchor="middle">Monke</text>`;
+    }
+
+    el.scene.innerHTML = s;
+
+    // ── Readout ───────────────────────────────────────────────────────
+    const rows = [
+      ['Kopf-Oberkante', st.h, sol.meshTop],
+      ['Augen / Headset', st.h * P.eye, sol.camPoint],
+      ['Schultern', st.h * P.shoulder, sol.root + K.shoulderY],
+      ['Torso-Höhe', st.h * (P.shoulder - P.hip), K.torsoTop - K.torsoBottom],
+      ['Kopf-Höhe', st.h * P.headH, K.headTop - K.headBottom],
+      ['Unterkante', 0, sol.meshBottom],
+    ];
+    el.cmp.innerHTML = rows.map(([k, a, b]) => {
+      const d = b - a;
+      return `<tr><td>${k}</td><td class="r">${f(a)}</td><td class="m">${f(b)}</td>
+              <td class="d">${(d >= 0 ? '+' : '') + f(d)}</td></tr>`;
+    }).join('');
+
+    el.floatBig.innerHTML = `${sol.float >= 0 ? '+' : ''}${f(sol.float)} <small>cm</small>`;
+    el.floatSub.textContent = Math.abs(sol.float) < 0.05
+      ? 'Monke steht auf dem Boden (Vergleichsmodus)'
+      : (sol.float > 0 ? 'Monke schwebt über dem Boden'
+                       : 'Monke steckt im Boden (Mesh-Unterkante negativ)');
+
+    el.rootOut.textContent = f(sol.root) + ' cm';
+    el.topOut.textContent = f(sol.meshTop) + ' cm';
+    el.botOut.textContent = f(sol.meshBottom) + ' cm';
+    el.reachOut.textContent = f(sol.reach) + ' cm';
+
+    const dh = sol.meshTop - st.h;
+    el.verdict.innerHTML =
+      `Der Monke ist eine <b>feste 1,2687-m-Mesh</b>. Bei ${f(st.h)} cm
+       Körpergröße (Augen ${f(st.h * P.eye)} cm) sitzt sein Rig-Ursprung auf
+       <b>${f(sol.root)} cm</b>, die Unterkante auf <b>${f(sol.meshBottom)} cm</b>.
+       Seine Kopf-Oberkante liegt <b>${dh >= 0 ? '+' : ''}${f(dh)} cm</b> zu deiner.`;
+
+    el.tag.textContent = `${f(st.h)} cm · Headset ${f(sol.eye)} cm · ${st.attach ? 'am Headset' : 'auf Boden'}`;
+  }
+
+  // ── Events ────────────────────────────────────────────────────────────
+  const sync = (src, dst) => {
+    const v = Math.min(210, Math.max(130, parseFloat(src.value) || 175));
+    dst.value = v;
+    render();
+  };
+
+  el.range.addEventListener('input', () => sync(el.range, el.num));
+  el.num.addEventListener('input', () => sync(el.num, el.range));
+  el.num.addEventListener('blur', () => { el.num.value = state().h; render(); });
+  document.querySelectorAll('[data-h]').forEach(b => {
+    b.addEventListener('click', () => {
+      el.num.value = b.dataset.h;
+      el.range.value = b.dataset.h;
+      render();
+    });
+  });
+  ['cam', 'attach', 'colliders', 'labels', 'grid'].forEach(id => {
+    el[id].addEventListener('input', render);
+    el[id].addEventListener('change', render);
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
